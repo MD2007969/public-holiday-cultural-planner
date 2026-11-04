@@ -1,23 +1,74 @@
-"""OOP data models shared by the project modules."""
+# models.py
+# Country and Holiday classes for the Public Holiday & Cultural Awareness Planner
+# Made by Favour Onu (Models role)
 
+from datetime import datetime
 
 class Country:
-    """Represent a country supported by the planner."""
+    """
+    Simple class to represent a country.
+    Holds the country code and name.
+    """
     def __init__(self, code, name):
-        self.code = code
+        # code should be like "NG", "US", "GB"
+        self.code = code.upper()
         self.name = name
+        self.holidays = []  # list of Holiday objects for this country
+
+    def add_holiday(self, holiday):
+        """Add a holiday to this country."""
+        self.holidays.append(holiday)
+
+    def get_holidays_sorted(self):
+        """Return holidays sorted by date."""
+        return sorted(self.holidays, key=lambda h: h.date)
+
+    def group_holidays_by_month(self):
+        """Group holidays by month name. Returns a dictionary."""
+        groups = {}
+        for holiday in self.get_holidays_sorted():
+            month_name = holiday.date.strftime("%B")  # like "January"
+            if month_name not in groups:
+                groups[month_name] = []
+            groups[month_name].append(holiday)
+        return groups
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    def __repr__(self):
+        return f"Country(code='{self.code}', name='{self.name}')"
 
 
 class Holiday:
-    """Represent one public holiday."""
-    def __init__(self, name, date, country_code, holiday_type=None, local_name=None):
+    """
+    Class for a single public holiday.
+    Has name, date, type, and the country it belongs to.
+    """
+    def __init__(self, name, date, holiday_type, country):
         self.name = name
-        self.date = date
-        self.country_code = country_code
-        self.holiday_type = holiday_type or []
-        self.local_name = local_name or name
+        # date can be a string "YYYY-MM-DD" or a datetime object
+        if isinstance(date, str):
+            self.date = datetime.strptime(date, "%Y-%m-%d")
+        else:
+            self.date = date
+        self.type = holiday_type  # e.g. "Public", "Bank", etc.
+        self.country = country    # Country object
 
-    def to_dict(self):
-        """Return the holiday as a dictionary."""
-        return {"name": self.name, "date": self.date, "country_code": self.country_code,
-                "types": self.holiday_type, "local_name": self.local_name}
+    def get_weekday(self):
+        """Return the day of the week, like 'Monday'."""
+        return self.date.strftime("%A")
+
+    def get_month(self):
+        """Return the month name."""
+        return self.date.strftime("%B")
+
+    def get_formatted_date(self):
+        """Nice readable date, e.g. '1 January 2026'."""
+        return self.date.strftime("%d %B %Y")
+
+    def __str__(self):
+        return f"{self.name} - {self.get_formatted_date()} ({self.get_weekday()}) [{self.type}]"
+
+    def __repr__(self):
+        return f"Holiday(name='{self.name}', date='{self.date.date()}', type='{self.type}')"
