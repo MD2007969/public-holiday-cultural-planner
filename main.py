@@ -231,82 +231,24 @@ def render_culture_tab():
 
 
 def render_comparison_tab():
-    st.subheader("Compare two countries")
-    first_col, second_col = st.columns(2)
-
-    country_names = list(COUNTRIES.keys())
-    with first_col:
-        first_country = st.selectbox(
-            "First country", country_names, index=0, key="compare_country_one"
+    """Delegate the comparison page to the member who owns that UI."""
+    try:
+        from comparison_ui import render_comparison_page
+    except ImportError:
+        st.info(
+            "The comparison page is being prepared by Favour. "
+            "It will appear here when comparison_ui.py is added to the project."
         )
-    with second_col:
-        second_country = st.selectbox(
-            "Second country", country_names, index=1, key="compare_country_two"
-        )
-
-    year = st.number_input(
-        "Comparison year",
-        min_value=2000,
-        max_value=2100,
-        value=2026,
-        step=1,
-        key="compare_year",
-    )
-
-    if first_country == second_country:
-        st.session_state.pop("comparison_result", None)
-        st.warning("Choose two different countries to compare.")
         return
 
-    if st.button("Compare public holidays", type="primary"):
-        # Do not keep showing a previous comparison while a new one is being made.
-        st.session_state.pop("comparison_result", None)
-        try:
-            first_code = COUNTRIES[first_country]
-            second_code = COUNTRIES[second_country]
-            validate_inputs(first_code, int(year))
-            validate_inputs(second_code, int(year))
-
-            first_holidays = load_holidays(first_code, int(year))
-            second_holidays = load_holidays(second_code, int(year))
-
-            from comparison import compare_holidays
-
-            result = compare_holidays(first_holidays, second_holidays)
-            st.session_state["comparison_result"] = {
-                "first_country": first_country,
-                "second_country": second_country,
-                "year": int(year),
-                "result": result,
-            }
-        except ImportError as error:
-            st.error("A required comparison or project module is missing: " + str(error))
-        except Exception as error:
-            st.error("The comparison could not be completed. Check the selected countries and try again.")
-            with st.expander("Technical details for the team"):
-                st.code(str(error))
-
-    comparison_item = st.session_state.get("comparison_result")
-    if comparison_item:
-        st.markdown(
-            "### "
-            + comparison_item["first_country"]
-            + " vs "
-            + comparison_item["second_country"]
-        )
-        st.write(comparison_item["result"])
-
-        if st.button("Save comparison"):
-            try:
-                from storage import save_comparison
-
-                save_comparison(comparison_item)
-                st.success("Comparison saved.")
-            except ImportError:
-                show_module_notice("storage.py")
-            except Exception as error:
-                st.error("Could not save the comparison: " + str(error))
-
+    # Keep the main app responsible for navigation and shared services.
+    # The comparison page owns its presentation; Patience's comparison.py
+    # owns the actual comparison calculations.
+    render_comparison_page(
+        countries=COUNTRIES,
+        load_holidays=load_holidays,
+        validate_inputs=validate_inputs,
+    )
 
 def render_saved_tab():
     st.subheader("Your saved items")
