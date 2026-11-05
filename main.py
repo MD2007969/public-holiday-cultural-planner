@@ -38,12 +38,18 @@ def get_value(item, key, default=""):
 
 def holiday_to_dict(holiday, country_code):
     """Convert a Holiday object or API dictionary into a display-friendly dictionary."""
+    name = get_value(holiday, "name", "") or get_value(holiday, "local_name", "")
+    holiday_type = (
+        get_value(holiday, "holiday_type", "")
+        or get_value(holiday, "type", "")
+        or "Public holiday"
+    )
     return {
-        "name": get_value(holiday, "name", get_value(holiday, "local_name", "Unnamed holiday")),
-        "date": str(get_value(holiday, "date", "")),
-        "country_code": get_value(holiday, "country_code", country_code),
-        "description": get_value(holiday, "description", ""),
-        "holiday_type": get_value(holiday, "holiday_type", get_value(holiday, "type", "Public holiday")),
+        "name": str(name or "Unnamed holiday"),
+        "date": str(get_value(holiday, "date", "") or ""),
+        "country_code": str(get_value(holiday, "country_code", "") or country_code),
+        "description": str(get_value(holiday, "description", "") or ""),
+        "holiday_type": str(holiday_type),
     }
 
 
@@ -86,8 +92,12 @@ def render_holiday_list(holidays, country_code):
 
     st.success("Found " + str(len(holidays)) + " holiday(s).")
 
-    for number, holiday in enumerate(holidays):
-        item = holiday_to_dict(holiday, country_code)
+    normalized_holidays = [
+        holiday_to_dict(holiday, country_code) for holiday in holidays
+    ]
+    normalized_holidays.sort(key=lambda item: (item["date"], item["name"].casefold()))
+
+    for number, item in enumerate(normalized_holidays):
         title = item["name"] + " — " + item["date"]
         with st.expander(title):
             st.write("**Country:** " + item["country_code"])
@@ -125,6 +135,17 @@ def render_holidays_tab():
     country_code = COUNTRIES[country_name]
 
     if st.button("Find public holidays", type="primary"):
+        # Clear dependent results so a failed search cannot leave stale data on screen.
+        for state_key in (
+            "holidays",
+            "active_country_code",
+            "active_country_name",
+            "active_year",
+            "current_guide",
+            "comparison_result",
+        ):
+            st.session_state.pop(state_key, None)
+
         try:
             validate_inputs(country_code, int(year))
             holidays = load_holidays(country_code, int(year))
@@ -135,7 +156,9 @@ def render_holidays_tab():
         except ImportError as error:
             st.error("A required project module has not been added yet: " + str(error))
         except Exception as error:
-            st.error("We could not retrieve the holidays. Please check your input or try again. Details: " + str(error))
+            st.error("We could not retrieve the holidays. Please check your input or try again.")
+            with st.expander("Technical details for the team"):
+                st.code(str(error))
 
     if "holidays" in st.session_state:
         st.write(
@@ -187,7 +210,9 @@ def render_culture_tab():
         except ImportError as error:
             st.error("The AI guide module is not available yet: " + str(error))
         except Exception as error:
-            st.warning("The AI guide could not be generated. Please try again. Details: " + str(error))
+            st.warning("The AI guide could not be generated. Please try again.")
+            with st.expander("Technical details for the team"):
+                st.code(str(error))
 
     guide_item = st.session_state.get("current_guide")
     if guide_item:
@@ -229,10 +254,13 @@ def render_comparison_tab():
     )
 
     if first_country == second_country:
+        st.session_state.pop("comparison_result", None)
         st.warning("Choose two different countries to compare.")
         return
 
     if st.button("Compare public holidays", type="primary"):
+        # Do not keep showing a previous comparison while a new one is being made.
+        st.session_state.pop("comparison_result", None)
         try:
             first_code = COUNTRIES[first_country]
             second_code = COUNTRIES[second_country]
@@ -254,7 +282,9 @@ def render_comparison_tab():
         except ImportError as error:
             st.error("A required comparison or project module is missing: " + str(error))
         except Exception as error:
-            st.error("The comparison could not be completed: " + str(error))
+            st.error("The comparison could not be completed. Check the selected countries and try again.")
+            with st.expander("Technical details for the team"):
+                st.code(str(error))
 
     comparison_item = st.session_state.get("comparison_result")
     if comparison_item:
