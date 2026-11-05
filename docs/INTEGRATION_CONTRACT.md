@@ -16,7 +16,7 @@ The following names must remain exact:
 | Owner | File | Responsibility | Expected interface |
 |---|---|---|---|
 | Usman Ibrahim | `holiday_api.py` | Requests, JSON parsing, timeouts, failed requests, unsupported countries | `HolidayAPIClient.get_public_holidays(country_code, year)` |
-| Favour Onu | `models.py`, `comparison_ui.py` | Country/Holiday models, date/time handling, two-country comparison page UI | `Country`, `Holiday`, `render_comparison_page(...)` |
+| Favour Onu | `models.py`, `comparison_ui.py` | Country/Holiday models, date/time handling, two-country comparison page UI | `Country`, `Holiday`, `render_comparison_page(countries, load_holidays, validate_inputs)` |
 | Prosper Kwushue | `culture_guide.py` | Gemini cultural guides and cultural differences, with fallback | `CultureGuideGenerator.generate_guide(country_code, holiday_name, year)` |
 | Haruna Ahmodu | `validators.py`, `exceptions.py` | Regex validation, custom exceptions, friendly validation errors | `validate_country_code(code)`, `validate_year(year)` |
 | Patience Eche | `storage.py`, `comparison.py` | JSON persistence and comparison calculations | Storage functions and `compare_holidays(first, second)` |
@@ -103,7 +103,7 @@ Storage should use JSON, create the data directory/files when needed, and handle
 
 ## Main application integration
 
-The main application owns the overall navigation and page shell. The comparison page itself belongs to Favour and should be integrated as a separate component once its interface is agreed. Patience owns the calculation logic called by that page. Prosper owns AI-generated cultural explanations.
+The main application owns the overall navigation and page shell. Favour's `comparison_ui.py` must expose `render_comparison_page(countries, load_holidays, validate_inputs)`. The main app passes its country mapping and shared loader/validator functions to that page. Favour's page calls Patience's `comparison.compare_holidays(...)` for calculations. Prosper owns AI-generated cultural explanations. Until `comparison_ui.py` is available, the main app displays a clear placeholder instead of duplicating the comparison UI.
 
 The UI should not reimplement another member's API, validation, AI, storage, or comparison logic.
 
