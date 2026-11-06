@@ -1,7 +1,7 @@
 """Main Streamlit application for the Public Holiday & Cultural Awareness Planner.
 
 Integration contract:
-- HolidayAPIClient.get_public_holidays(country_code, year) -> list of Holiday objects or dictionaries
+- HolidayAPIClient.get_public_holidays(country_code, year) or fetch_holidays(country_code, year) -> list of Holiday objects or dictionaries
 - CultureGuideGenerator.generate_guide(country_code, holiday_name, year) -> guide text or dictionary
 - validators.validate_country_code(code) and validators.validate_year(year)
 - storage.save_favorite(item), storage.load_favorites(), storage.save_guide(item),
@@ -37,17 +37,35 @@ def get_value(item, key, default=""):
 
 
 def holiday_to_dict(holiday, country_code):
-    """Convert a Holiday object or API dictionary into a display-friendly dictionary."""
-    name = get_value(holiday, "name", "") or get_value(holiday, "local_name", "")
+    """Normalize API dictionaries and Holiday objects for the UI."""
+    name = (
+        get_value(holiday, "name", "")
+        or get_value(holiday, "local_name", "")
+        or "Unnamed holiday"
+    )
+
+    # Usman's API uses "types", which may be a list such as ["Public"].
+    types = get_value(holiday, "types", [])
+    if isinstance(types, (list, tuple)):
+        types_text = ", ".join(str(item) for item in types)
+    else:
+        types_text = str(types or "")
+
     holiday_type = (
         get_value(holiday, "holiday_type", "")
         or get_value(holiday, "type", "")
+        or types_text
         or "Public holiday"
     )
+
     return {
-        "name": str(name or "Unnamed holiday"),
+        "name": str(name),
         "date": str(get_value(holiday, "date", "") or ""),
-        "country_code": str(get_value(holiday, "country_code", "") or country_code),
+        "country_code": str(
+            get_value(holiday, "country_code", "")
+            or get_value(holiday, "country", "")
+            or country_code
+        ),
         "description": str(get_value(holiday, "description", "") or ""),
         "holiday_type": str(holiday_type),
     }
@@ -61,11 +79,21 @@ def show_module_notice(module_name):
 
 
 def load_holidays(country_code, year):
-    """Load holidays through the API module supplied by the API team member."""
+    """Load holidays using the API team's available client method."""
     from holiday_api import HolidayAPIClient
 
     client = HolidayAPIClient()
-    return client.get_public_holidays(country_code, year)
+
+    # Support the agreed interface and Usman's current branch implementation.
+    if hasattr(client, "get_public_holidays"):
+        return client.get_public_holidays(country_code, year)
+
+    if hasattr(client, "fetch_holidays"):
+        return client.fetch_holidays(country_code, year)
+
+    raise AttributeError(
+        "HolidayAPIClient must provide get_public_holidays() or fetch_holidays()."
+    )
 
 
 def validate_inputs(country_code, year):
