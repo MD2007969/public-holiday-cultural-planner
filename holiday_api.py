@@ -308,7 +308,7 @@ if __name__ == "__main__":
     # Quick self-test: run `python holiday_api.py`
     client = HolidayAPIClient()
 
-    print("-- single country --")
+    print(" single country ")
     try:
         holidays = client.fetch_holidays("GB", 2026)
         print(f"GB 2026: {len(holidays)} holidays")
