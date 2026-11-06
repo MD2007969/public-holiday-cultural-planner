@@ -1,21 +1,24 @@
-"""Main Streamlit application for the Public Holiday & Cultural Awareness Planner.
+"""
+GROUP 9 PROJECT
+Public Holiday & Cultural Awareness Planner
 
-Integration contract:
-- HolidayAPIClient.get_public_holidays(country_code, year) or fetch_holidays(country_code, year) -> list of Holiday objects or dictionaries
-- CultureGuideGenerator.generate_guide(country_code, holiday_name, year) -> guide text or dictionary
-- validators.validate_country_code(code) and validators.validate_year(year)
-- storage.save_favorite(item), storage.load_favorites(), storage.save_guide(item),
-  storage.load_guides(), storage.save_comparison(item), storage.load_comparisons()
-- comparison.compare_holidays(first_country_holidays, second_country_holidays)
+Leader: Muhammad Abdulaziz
 """
 
+import re
 import streamlit as st
+
+
+# --------------------------------------------------
+# 1. APPLICATION CONFIGURATION
+# --------------------------------------------------
 
 st.set_page_config(
     page_title="Holiday & Culture Planner",
     page_icon="🌍",
-    layout="wide",
+    layout="wide"
 )
+
 
 COUNTRIES = {
     "Nigeria": "NG",
@@ -25,346 +28,544 @@ COUNTRIES = {
     "Canada": "CA",
     "India": "IN",
     "South Africa": "ZA",
-    "Kenya": "KE",
+    "Kenya": "KE"
 }
 
 
+# --------------------------------------------------
+# 2. HELPER FUNCTIONS
+# --------------------------------------------------
+
 def get_value(item, key, default=""):
-    """Read a value from either a dictionary or an object."""
+    """Read a value from a dictionary or object."""
+
     if isinstance(item, dict):
         return item.get(key, default)
+
     return getattr(item, key, default)
 
 
 def holiday_to_dict(holiday, country_code):
-    """Normalize API dictionaries and Holiday objects for the UI."""
+    """Convert holiday data into a standard dictionary."""
+
     name = (
         get_value(holiday, "name", "")
         or get_value(holiday, "local_name", "")
         or "Unnamed holiday"
     )
 
-    # Usman's API uses "types", which may be a list such as ["Public"].
-    types = get_value(holiday, "types", [])
-    if isinstance(types, (list, tuple)):
-        types_text = ", ".join(str(item) for item in types)
-    else:
-        types_text = str(types or "")
-
     holiday_type = (
         get_value(holiday, "holiday_type", "")
         or get_value(holiday, "type", "")
-        or types_text
+        or get_value(holiday, "types", "")
         or "Public holiday"
     )
 
+    if isinstance(holiday_type, (list, tuple)):
+        holiday_type = ", ".join(
+            str(value) for value in holiday_type
+        )
+
+    date = get_value(holiday, "date", "")
+
+    if hasattr(date, "isoformat"):
+        date = date.isoformat()
+
     return {
         "name": str(name),
-        "date": str(get_value(holiday, "date", "") or ""),
+        "date": str(date),
         "country_code": str(
             get_value(holiday, "country_code", "")
             or get_value(holiday, "country", "")
             or country_code
         ),
-        "description": str(get_value(holiday, "description", "") or ""),
         "holiday_type": str(holiday_type),
+        "description": str(
+            get_value(holiday, "description", "")
+        )
     }
 
 
-def show_module_notice(module_name):
-    st.info(
-        module_name + " is not available yet. The responsible team member should "
-        "push the module to their branch and submit a pull request."
-    )
+# --------------------------------------------------
+# 3. INPUT VALIDATION
+# --------------------------------------------------
 
+def validate_inputs(country_code, year):
+    """Validate country code and year."""
+
+    try:
+        from validators import (
+            validate_country_code,
+            validate_year
+        )
+
+    except ImportError:
+
+        if not re.fullmatch(r"[A-Z]{2}", str(country_code)):
+            raise ValueError("Invalid country code.")
+
+        if not 2000 <= int(year) <= 2100:
+            raise ValueError(
+                "Year must be between 2000 and 2100."
+            )
+
+    else:
+        validate_country_code(country_code)
+        validate_year(year)
+
+
+# --------------------------------------------------
+# 4. HOLIDAY API INTEGRATION
+# --------------------------------------------------
 
 def load_holidays(country_code, year):
-    """Load holidays using the API team's available client method."""
+    """Retrieve public holidays using Usman's API module."""
+
     from holiday_api import HolidayAPIClient
 
     client = HolidayAPIClient()
 
-    # Support the agreed interface and Usman's current branch implementation.
     if hasattr(client, "get_public_holidays"):
-        return client.get_public_holidays(country_code, year)
 
-    if hasattr(client, "fetch_holidays"):
-        return client.fetch_holidays(country_code, year)
+        holidays = client.get_public_holidays(
+            country_code,
+            year
+        )
 
-    raise AttributeError(
-        "HolidayAPIClient must provide get_public_holidays() or fetch_holidays()."
-    )
+    elif hasattr(client, "fetch_holidays"):
+
+        holidays = client.fetch_holidays(
+            country_code,
+            year
+        )
+
+    else:
+        raise AttributeError(
+            "HolidayAPIClient must provide "
+            "get_public_holidays() or fetch_holidays()."
+        )
+
+    return holidays or []
 
 
-def validate_inputs(country_code, year):
-    """Run the shared validation functions when they are available."""
-    from validators import validate_country_code, validate_year
+# --------------------------------------------------
+# 5. AI CULTURAL GUIDE INTEGRATION
+# --------------------------------------------------
 
-    validate_country_code(country_code)
-    validate_year(year)
+def create_culture_guide(
+    country_code,
+    holiday_name,
+    year
+):
+    """Generate a cultural guide using Prosper's module."""
 
-
-def create_culture_guide(country_code, holiday_name, year):
-    """Generate a cultural guide through the Gemini module."""
     from culture_guide import CultureGuideGenerator
 
     generator = CultureGuideGenerator()
-    return generator.generate_guide(country_code, holiday_name, year)
+
+    return generator.generate_guide(
+        country_code,
+        holiday_name,
+        year
+    )
 
 
-def render_holiday_list(holidays, country_code):
-    """Display returned holidays and allow the user to save a favorite."""
-    if not holidays:
-        st.warning("No holidays were returned for this country and year.")
-        return
-
-    st.success("Found " + str(len(holidays)) + " holiday(s).")
-
-    normalized_holidays = [
-        holiday_to_dict(holiday, country_code) for holiday in holidays
-    ]
-    normalized_holidays.sort(key=lambda item: (item["date"], item["name"].casefold()))
-
-    for number, item in enumerate(normalized_holidays):
-        title = item["name"] + " — " + item["date"]
-        with st.expander(title):
-            st.write("**Country:** " + item["country_code"])
-            st.write("**Type:** " + item["holiday_type"])
-            if item["description"]:
-                st.write(item["description"])
-
-            if st.button("Save to favourites", key="save_holiday_" + str(number)):
-                try:
-                    from storage import save_favorite
-
-                    save_favorite(item)
-                    st.success("Holiday saved to favourites.")
-                except ImportError:
-                    show_module_notice("storage.py")
-                except Exception as error:
-                    st.error("Could not save this holiday: " + str(error))
-
+# --------------------------------------------------
+# 6. PUBLIC HOLIDAYS PAGE
+# --------------------------------------------------
 
 def render_holidays_tab():
-    st.subheader("Explore public holidays")
-    left, right = st.columns([2, 1])
 
-    with left:
-        country_name = st.selectbox("Choose a country", list(COUNTRIES.keys()))
-    with right:
+    st.header("📅 Explore Public Holidays")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        country = st.selectbox(
+            "Select a country",
+            list(COUNTRIES.keys())
+        )
+
+    with col2:
+
         year = st.number_input(
-            "Choose a year",
+            "Select year",
             min_value=2000,
             max_value=2100,
             value=2026,
-            step=1,
+            step=1
         )
 
-    country_code = COUNTRIES[country_name]
+    country_code = COUNTRIES[country]
 
-    if st.button("Find public holidays", type="primary"):
-        # Clear dependent results so a failed search cannot leave stale data on screen.
-        for state_key in (
-            "holidays",
-            "active_country_code",
-            "active_country_name",
-            "active_year",
-            "current_guide",
-            "comparison_result",
-        ):
-            st.session_state.pop(state_key, None)
+    if st.button(
+        "Find Public Holidays",
+        type="primary"
+    ):
+
+        st.session_state.pop("holidays", None)
 
         try:
-            validate_inputs(country_code, int(year))
-            holidays = load_holidays(country_code, int(year))
+
+            validate_inputs(
+                country_code,
+                int(year)
+            )
+
+            with st.spinner("Retrieving holidays..."):
+
+                holidays = load_holidays(
+                    country_code,
+                    int(year)
+                )
+
             st.session_state["holidays"] = holidays
-            st.session_state["active_country_code"] = country_code
-            st.session_state["active_country_name"] = country_name
+            st.session_state["active_country"] = country
+            st.session_state["active_code"] = country_code
             st.session_state["active_year"] = int(year)
+
         except ImportError as error:
-            st.error("A required project module has not been added yet: " + str(error))
+
+            st.error(
+                f"A required module is missing: {error}"
+            )
+
         except Exception as error:
-            st.error("We could not retrieve the holidays. Please check your input or try again.")
-            with st.expander("Technical details for the team"):
-                st.code(str(error))
 
-    if "holidays" in st.session_state:
-        st.write(
-            "Showing results for "
-            + st.session_state.get("active_country_name", country_name)
-            + " — "
-            + str(st.session_state.get("active_year", int(year)))
-        )
-        render_holiday_list(
-            st.session_state["holidays"],
-            st.session_state.get("active_country_code", country_code),
-        )
+            st.error("Unable to retrieve holidays.")
+            st.exception(error)
 
+    if "holidays" not in st.session_state:
+        return
 
-def render_culture_tab():
-    st.subheader("AI cultural guide")
-    holidays = st.session_state.get("holidays", [])
+    holidays = st.session_state["holidays"]
 
     if not holidays:
-        st.info("Find a country's public holidays first, then choose a holiday for its cultural guide.")
+
+        st.warning(
+            "No holidays were found for this selection."
+        )
+
         return
 
-    country_code = st.session_state.get("active_country_code", "NG")
-    country_name = st.session_state.get("active_country_name", country_code)
-    holiday_names = [
-        holiday_to_dict(item, country_code)["name"] for item in holidays
-    ]
-    selected_holiday = st.selectbox("Choose a holiday", holiday_names)
+    st.success(
+        f"{len(holidays)} holidays found!"
+    )
 
-    if st.button("Generate cultural guide", type="primary"):
-        try:
-            guide = create_culture_guide(
-                country_code,
-                selected_holiday,
-                st.session_state.get("active_year", 2026),
+    normalized = [
+        holiday_to_dict(item, country_code)
+        for item in holidays
+    ]
+
+    normalized.sort(
+        key=lambda item: (
+            item["date"],
+            item["name"].casefold()
+        )
+    )
+
+    for index, holiday in enumerate(normalized):
+
+        with st.expander(
+            f'{holiday["date"]} - {holiday["name"]}'
+        ):
+
+            st.write(
+                "Country:",
+                holiday["country_code"]
             )
+
+            st.write(
+                "Type:",
+                holiday["holiday_type"]
+            )
+
+            if holiday["description"]:
+                st.write(holiday["description"])
+
+            if st.button(
+                "⭐ Save Favourite",
+                key=f"favorite_{index}"
+            ):
+
+                try:
+
+                    from storage import save_favorite
+
+                    save_favorite(holiday)
+
+                    st.success("Holiday saved!")
+
+                except ImportError:
+
+                    st.warning(
+                        "Storage module is not available yet."
+                    )
+
+                except Exception as error:
+
+                    st.error(str(error))
+
+
+# --------------------------------------------------
+# 7. CULTURAL GUIDE PAGE
+# --------------------------------------------------
+
+def render_culture_tab():
+
+    st.header("✨ AI Cultural Guide")
+
+    holidays = st.session_state.get(
+        "holidays",
+        []
+    )
+
+    if not holidays:
+
+        st.info(
+            "Find public holidays first before generating a guide."
+        )
+
+        return
+
+    country_code = st.session_state["active_code"]
+    country = st.session_state["active_country"]
+    year = st.session_state["active_year"]
+
+    holiday_names = [
+        holiday_to_dict(item, country_code)["name"]
+        for item in holidays
+    ]
+
+    selected = st.selectbox(
+        "Choose a holiday",
+        holiday_names
+    )
+
+    if st.button(
+        "Generate Cultural Guide",
+        type="primary"
+    ):
+
+        try:
+
+            with st.spinner(
+                "Generating cultural guide..."
+            ):
+
+                guide = create_culture_guide(
+                    country_code,
+                    selected,
+                    year
+                )
+
             if isinstance(guide, dict):
-                guide_text = guide.get("guide", guide.get("content", str(guide)))
-            else:
-                guide_text = str(guide)
+
+                guide = guide.get(
+                    "guide",
+                    guide.get("content", str(guide))
+                )
 
             st.session_state["current_guide"] = {
-                "country": country_name,
+                "country": country,
                 "country_code": country_code,
-                "holiday": selected_holiday,
-                "year": st.session_state.get("active_year", 2026),
-                "guide": guide_text,
+                "holiday": selected,
+                "year": year,
+                "guide": str(guide)
             }
-        except ImportError as error:
-            st.error("The AI guide module is not available yet: " + str(error))
-        except Exception as error:
-            st.warning("The AI guide could not be generated. Please try again.")
-            with st.expander("Technical details for the team"):
-                st.code(str(error))
 
-    guide_item = st.session_state.get("current_guide")
-    if guide_item:
-        st.markdown("### " + guide_item["holiday"] + " in " + guide_item["country"])
-        st.write(guide_item["guide"])
-        if st.button("Save this guide"):
+        except ImportError:
+
+            st.warning(
+                "AI cultural guide module is not available yet."
+            )
+
+        except Exception as error:
+
+            st.error(
+                "Could not generate the cultural guide."
+            )
+
+            st.exception(error)
+
+    guide_data = st.session_state.get(
+        "current_guide"
+    )
+
+    if guide_data:
+
+        st.subheader(
+            f'{guide_data["holiday"]} '
+            f'in {guide_data["country"]}'
+        )
+
+        st.write(guide_data["guide"])
+
+        if st.button("Save Cultural Guide"):
+
             try:
+
                 from storage import save_guide
 
-                save_guide(guide_item)
-                st.success("Cultural guide saved.")
-            except ImportError:
-                show_module_notice("storage.py")
-            except Exception as error:
-                st.error("Could not save the guide: " + str(error))
+                save_guide(guide_data)
 
+                st.success("Guide saved!")
+
+            except ImportError:
+
+                st.warning(
+                    "Storage module is not available yet."
+                )
+
+            except Exception as error:
+
+                st.error(str(error))
+
+
+# --------------------------------------------------
+# 8. COUNTRY COMPARISON PAGE
+# --------------------------------------------------
 
 def render_comparison_tab():
-    """Delegate the comparison page to the member who owns that UI."""
-    try:
-        from comparison_ui import render_comparison_page
-    except ImportError:
-        st.info(
-            "The comparison page is being prepared by Favour. "
-            "It will appear here when comparison_ui.py is added to the project."
-        )
-        return
 
-    # Keep the main app responsible for navigation and shared services.
-    # The comparison page owns its presentation; Patience's comparison.py
-    # owns the actual comparison calculations.
-    render_comparison_page(
-        countries=COUNTRIES,
-        load_holidays=load_holidays,
-        validate_inputs=validate_inputs,
-    )
+    st.header("⚖️ Compare Countries")
+
+    try:
+
+        from comparison_ui import render_comparison_page
+
+        render_comparison_page(
+            countries=COUNTRIES,
+            load_holidays=load_holidays,
+            validate_inputs=validate_inputs
+        )
+
+    except ImportError:
+
+        st.info(
+            "The comparison page is waiting for "
+            "Favour's comparison_ui.py module."
+        )
+
+    except Exception as error:
+
+        st.error(
+            "The comparison page encountered an error."
+        )
+
+        st.exception(error)
+
+
+# --------------------------------------------------
+# 9. SAVED ITEMS PAGE
+# --------------------------------------------------
 
 def render_saved_tab():
-    st.subheader("Your saved items")
-    favorites_col, guides_col, comparisons_col = st.columns(3)
 
-    with favorites_col:
-        st.markdown("#### ⭐ Favourite holidays")
-        try:
-            from storage import load_favorites
+    st.header("💾 Saved Items")
 
-            favorites = load_favorites()
-            if favorites:
-                for item in favorites:
-                    st.write(
-                        str(item.get("name", "Holiday"))
-                        + " — "
-                        + str(item.get("date", ""))
+    columns = st.columns(3)
+
+    sections = [
+        ("⭐ Favourite Holidays", "load_favorites"),
+        ("📚 Cultural Guides", "load_guides"),
+        ("🌍 Comparisons", "load_comparisons")
+    ]
+
+    for column, (heading, function_name) in zip(
+        columns,
+        sections
+    ):
+
+        with column:
+
+            st.subheader(heading)
+
+            try:
+
+                import storage
+
+                loader = getattr(
+                    storage,
+                    function_name,
+                    None
+                )
+
+                if loader is None:
+
+                    st.caption(
+                        f"{function_name}() is not implemented yet."
                     )
-            else:
-                st.caption("No favourites saved yet.")
-        except ImportError:
-            st.caption("Storage module is not available yet.")
-        except Exception as error:
-            st.error("Could not load favourites: " + str(error))
 
-    with guides_col:
-        st.markdown("#### 📚 Cultural guides")
-        try:
-            from storage import load_guides
+                    continue
 
-            guides = load_guides()
-            if guides:
-                for item in guides:
-                    st.write(item.get("holiday", "Saved guide"))
-            else:
-                st.caption("No guides saved yet.")
-        except ImportError:
-            st.caption("Storage module is not available yet.")
-        except Exception as error:
-            st.error("Could not load guides: " + str(error))
+                records = loader()
 
-    with comparisons_col:
-        st.markdown("#### 🌍 Comparisons")
-        try:
-            from storage import load_comparisons
+                if not records:
 
-            comparisons = load_comparisons()
-            if comparisons:
-                for item in comparisons:
-                    st.write(
-                        item.get("first_country", "Country 1")
-                        + " vs "
-                        + item.get("second_country", "Country 2")
-                    )
-            else:
-                st.caption("No comparisons saved yet.")
-        except ImportError:
-            st.caption("Storage module is not available yet.")
-        except Exception as error:
-            st.error("Could not load comparisons: " + str(error))
+                    st.caption("Nothing saved yet.")
 
+                else:
+
+                    for record in records:
+                        st.write(record)
+
+            except ImportError:
+
+                st.caption(
+                    "Storage module is not available yet."
+                )
+
+            except Exception as error:
+
+                st.error(str(error))
+
+
+# --------------------------------------------------
+# 10. MAIN APPLICATION
+# --------------------------------------------------
 
 def main():
-    st.title("🌍 Public Holiday & Cultural Awareness Planner")
-    st.caption(
-        "Explore public holidays, discover the cultures behind them, "
-        "and compare celebrations across countries."
+
+    st.title(
+        "🌍 Public Holiday & Cultural Awareness Planner"
     )
 
-    holidays_tab, culture_tab, compare_tab, saved_tab = st.tabs(
-        ["Public Holidays", "Cultural Guide", "Compare Countries", "Saved Items"]
+    st.write(
+        "Explore public holidays, discover cultural "
+        "traditions, and compare celebrations across countries."
     )
 
-    with holidays_tab:
+    tabs = st.tabs([
+        "📅 Public Holidays",
+        "✨ Cultural Guide",
+        "⚖️ Compare Countries",
+        "💾 Saved Items"
+    ])
+
+    with tabs[0]:
         render_holidays_tab()
 
-    with culture_tab:
+    with tabs[1]:
         render_culture_tab()
 
-    with compare_tab:
+    with tabs[2]:
         render_comparison_tab()
 
-    with saved_tab:
+    with tabs[3]:
         render_saved_tab()
 
     st.divider()
-    st.caption("Group 9 • Public Holiday & Cultural Awareness Planner")
 
+    st.caption(
+        "Group 9 | Public Holiday & Cultural Awareness Planner"
+    )
+
+
+# --------------------------------------------------
+# 11. APPLICATION ENTRY POINT
+# --------------------------------------------------
 
 if __name__ == "__main__":
     main()
