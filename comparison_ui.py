@@ -109,17 +109,18 @@ class ComparisonUI:
         return overlaps
 
     def get_comparison_summary(self):
-        """Return comparison results in a dictionary."""
-        shared = self.find_shared_holidays()
-        overlaps = self.find_overlapping_dates()
-        return {
-            "country1": str(self.country1),
-            "country2": str(self.country2),
-            "shared_holiday_names": shared,
-            "overlapping_dates": overlaps,
-            "total_holidays_country1": len(self.country1.holidays),
-            "total_holidays_country2": len(self.country2.holidays),
-        }
+        """Return comparison results using Patience's comparison module."""
+        from comparison import compare_holidays
+
+        result = compare_holidays(
+            self.country1.holidays,
+            self.country2.holidays
+        )
+
+        result["country1"] = str(self.country1)
+        result["country2"] = str(self.country2)
+
+        return result
 
     def get_formatted_result(self):
         """Return a readable text summary of the comparison."""
@@ -257,6 +258,25 @@ def render_comparison_page(countries, load_holidays, validate_inputs):
             )
         else:
             st.info("No holidays fall on the same dates in both countries.")
+        st.divider()
+
+        if st.button("Save Comparison"):
+            try:
+                from storage import save_comparison
+
+                save_comparison({
+                    "country1": country1_name,
+                    "country2": country2_name,
+                    "country1_code": code1,
+                    "country2_code": code2,
+                    "year": int(year),
+                    "summary": summary,
+                })
+
+                st.success("Comparison saved successfully!")
+
+            except Exception as error:
+                st.error(f"Could not save comparison: {error}")
 
         with st.expander("View comparison summary"):
             st.text(comparison.get_formatted_result())
