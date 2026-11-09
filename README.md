@@ -6,22 +6,29 @@ A Python application that helps users explore public holidays, understand their 
 
 - Select a country and year to retrieve public holidays.
 - Display holiday names, dates, and holiday types.
-- Generate cultural guides covering meaning, history/context, greetings, and customs using Gemini.
+- Generate cultural guides covering meaning, context, greetings, and customs using Gemini.
 - Compare public holidays between two countries, including shared holidays and overlapping dates.
 - Explain cultural differences between the selected countries.
 - Save favorite holidays, cultural guides, and comparisons locally.
 
+## Live application
+
+[Open the Public Holiday & Cultural Awareness Planner](https://public-holiday-cultural-planner-bvklndu7ltbp5e7eesemmu.streamlit.app/)
+
+## Source code
+
+[GitHub repository](https://github.com/MD2007969/public-holiday-cultural-planner)
+
 ## Technology
 
-- Python 3.10+
+- Python
 - Streamlit
 - Requests and JSON
 - Python date/time handling
 - Google Gemini API
-- Regular expressions
 - JSON file storage
 
-## Run the application
+## Run the application locally
 
 1. Install Python 3.10 or later.
 2. Clone the repository and open the project folder.
@@ -32,13 +39,13 @@ A Python application that helps users explore public holidays, understand their 
    pip install -r requirements.txt
    ```
 
-5. Configure your Gemini API key locally. Create `.streamlit/secrets.toml`:
+5. If you want to use the AI cultural-guide feature, configure your Gemini API key in Streamlit secrets. Create `.streamlit/secrets.toml`:
 
    ```toml
    GEMINI_API_KEY = "your_api_key_here"
    ```
 
-   Do not commit this file or share your API key. It is excluded by `.gitignore`.
+   Do not commit this file or share your API key.
 
 6. Start the application:
 
@@ -48,69 +55,55 @@ A Python application that helps users explore public holidays, understand their 
 
 ## Run the tests
 
-Run the initial main-application helper tests with:
+Run the test suite with:
 
 ```bash
-python -m unittest discover -s tests -v
+python -m pytest -q
 ```
 
-Add tests for each module as the team members submit their implementations.
+## Project team and contributions
 
-## Team roles and module ownership
+Group 9's documented contributors and responsibilities are:
 
-| Member | Role | Main deliverables |
+| Contributor | Role | Contribution |
 |---|---|---|
-| Muhammad Abdulaziz | Role 1 — Leader | GitHub coordination, `main.py` app shell and main UI, integration, end-to-end testing, README and presentation slides |
-| Usman Ibrahim | Role 2 — API Client | `HolidayAPIClient`, Requests/JSON parsing, failed requests, timeouts, unsupported countries |
-| Favour Onu | Role 3 — Models | `Country` and `Holiday` classes, date/time handling, two-country comparison page UI |
-| Prosper Kwushue | Role 4 — AI Guide | `CultureGuideGenerator`, Gemini cultural guides, cultural differences, fallback behavior |
-| Haruna Ahmodu | Role 5 — Validation | `validators.py`, regex validation, custom exceptions, friendly errors and validation testing |
-| Patience Eche | Role 7 — File Handling | `storage.py`, JSON save/load, comparison logic for shared holidays and overlapping dates |
+| Muhammad Abdulaziz | Group Leader and Integration Lead | Main application flow and UI, integration of project modules, storage and comparison integration, end-to-end testing, repository coordination, documentation and presentation preparation |
+| Usman Ibrahim | Holiday API Client | API requests, holiday data retrieval, JSON response handling, and API error handling |
+| Favour Onu | Data Models and Comparison UI | Country and Holiday models, date handling, and the two-country comparison interface |
+| Prosper Kwushue | AI Cultural Guide | Gemini integration and AI-generated cultural guidance |
 
-Each member is expected to commit their own work and present their contribution. See [CONTRIBUTING.md](CONTRIBUTING.md) for the GitHub workflow.
+This contributor list reflects the four members whose work is included in the final project. Patience Eche and Haruna Ahmodu are not listed as contributors because their assigned work was not completed or included in the final integrated contribution record.
 
-## Module integration contracts
+## Main project modules
 
-The agreed integration interfaces are documented in [docs/INTEGRATION_CONTRACT.md](docs/INTEGRATION_CONTRACT.md). Key names must remain exact:
-
-- `Country`
-- `Holiday`
-- `HolidayAPIClient`
-- `CultureGuideGenerator`
-
-Expected module responsibilities:
-
-| File | Expected interface / responsibility |
+| File | Responsibility |
 |---|---|
-| `models.py` | `Country` and `Holiday` classes |
-| `holiday_api.py` | `HolidayAPIClient.get_public_holidays(country_code, year)` |
-| `culture_guide.py` | `CultureGuideGenerator.generate_guide(country_code, holiday_name, year)` |
-| `validators.py` | `validate_country_code(code)` and `validate_year(year)` |
-| `exceptions.py` | Shared custom exceptions for validation and application errors |
-| `storage.py` | Save/load favorites, guides, and comparisons |
-| `comparison.py` | `compare_holidays(first_country_holidays, second_country_holidays)` |
-| `comparison_ui.py` | Comparison page UI owned by Favour, coordinated with Patience and Prosper |
-
-If a function signature or return format needs to change, discuss it with the affected members and update the integration contract before merging.
+| `main.py` | Main Streamlit application and navigation |
+| `holiday_api.py` | Public holiday API client |
+| `models.py` | Country and Holiday data models |
+| `culture_guide.py` | AI cultural guide generation |
+| `comparison.py` | Comparison calculations for holiday data |
+| `comparison_ui.py` | Country comparison interface |
+| `storage.py` | Saving and loading favorites, guides, and comparisons |
 
 ## GitHub contribution workflow
 
-1. Work only on your assigned personal branch.
-2. Commit and push your own changes to that branch.
+1. Work on an assigned branch.
+2. Commit and push changes to that branch.
 3. Open a pull request targeting `main`.
-4. Explain what you implemented and how you tested it.
-5. Wait for the group leader's review and approval before merging.
+4. Describe the changes and tests performed.
+5. Review and merge approved changes.
 
-Do not push directly to `main`. Do not commit API keys, local secrets, virtual environments, or personal saved-data files.
+Do not commit API keys, local secrets, virtual environments, or personal saved-data files.
 
 ## Python concepts demonstrated
 
-The project demonstrates object-oriented programming, API requests, JSON processing, regular expressions, exception handling, date/time handling, and file handling.
+The project uses Python functions and modules, object-oriented data models, API requests, JSON processing, exception handling, date/time handling, and file handling.
 
 ## Presentation
 
-See [PRESENTATION_OUTLINE.md](PRESENTATION_OUTLINE.md) for the slide sequence, individual speaking responsibilities, and live demonstration plan.
+See [PRESENTATION_OUTLINE.md](PRESENTATION_OUTLINE.md) for the presentation structure and live demonstration plan.
 
-## Project team
+---
 
-Group 9 — Public Holiday & Cultural Awareness Planner.
+**Group 9 — Public Holiday & Cultural Awareness Planner**
