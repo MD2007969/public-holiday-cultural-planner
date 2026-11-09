@@ -148,10 +148,13 @@ class ComparisonUI:
         if summary["overlapping_dates"]:
             lines.append("Overlapping dates:")
             for item in summary["overlapping_dates"]:
-                lines.append(
-                    f"  {item['date']}: {item['country1_holiday']} | "
-                    f"{item['country2_holiday']}"
-                )
+                if isinstance(item, dict):
+                    lines.append(
+                        f"  {item['date']}: {item['country1_holiday']} | "
+                        f"{item['country2_holiday']}"
+                    )
+                else:
+                    lines.append(f"  {item}")
         else:
             lines.append("No overlapping dates found.")
 
@@ -250,9 +253,10 @@ def render_comparison_page(countries, load_holidays, validate_inputs):
             st.info("No holidays with matching names were found.")
 
         st.markdown("#### Holidays on overlapping dates")
-        if summary["overlapping_dates"]:
+        overlap_details = comparison.find_overlapping_dates()
+        if overlap_details:
             st.dataframe(
-                summary["overlapping_dates"],
+                overlap_details,
                 use_container_width=True,
                 hide_index=True,
             )
