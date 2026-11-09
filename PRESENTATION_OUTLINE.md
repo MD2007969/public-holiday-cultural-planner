@@ -2,7 +2,7 @@
 
 **Project:** Public Holiday & Cultural Awareness Planner  
 **Submission:** 9 November 2026  
-**Presentation:** 10 November 2026
+**Presentation:** Friday, 13 November 2026 at 9:00 AM
 
 ## Project team
 
