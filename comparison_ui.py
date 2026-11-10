@@ -163,12 +163,8 @@ class ComparisonUI:
 
 def render_comparison_page(countries, load_holidays, validate_inputs):
     """
-    Render the comparison page expected by main.py.
-
-    Args:
-        countries: Mapping of display country names to country codes.
-        load_holidays: Callable accepting (country_code, year).
-        validate_inputs: Callable accepting (country_code, year).
+    Render the comparison page and preserve its result across Streamlit reruns.
+    This is important because clicking Save Comparison triggers a rerun.
     """
     st.subheader("Compare public holidays between two countries")
 
@@ -203,88 +199,108 @@ def render_comparison_page(countries, load_holidays, validate_inputs):
         key="comparison_year",
     )
 
-    if not st.button("Compare Countries", type="primary"):
+    current_selection = (country1_name, country2_name, int(year))
+
+    if st.button("Compare Countries", type="primary"):
+        code1 = countries[country1_name]
+        code2 = countries[country2_name]
+
+        try:
+            validate_inputs(code1, int(year))
+            validate_inputs(code2, int(year))
+
+            with st.spinner("Loading holidays and comparing countries..."):
+                holidays1 = load_holidays(code1, int(year))
+                holidays2 = load_holidays(code2, int(year))
+
+            first_country = Country(code1, country1_name)
+            second_country = Country(code2, country2_name)
+
+            for item in holidays1:
+                normalised = _normalise_holiday(item, first_country)
+                if normalised is not None:
+                    first_country.add_holiday(normalised)
+
+            for item in holidays2:
+                normalised = _normalise_holiday(item, second_country)
+                if normalised is not None:
+                    second_country.add_holiday(normalised)
+
+            comparison = ComparisonUI(first_country, second_country)
+            summary = comparison.get_comparison_summary()
+
+            # Keep only serializable data in session state so the result
+            # survives the rerun caused by pressing Save Comparison.
+            st.session_state["comparison_result"] = {
+                "selection": current_selection,
+                "country1": country1_name,
+                "country2": country2_name,
+                "country1_code": code1,
+                "country2_code": code2,
+                "year": int(year),
+                "summary": summary,
+                "overlapping_dates": comparison.find_overlapping_dates(),
+                "formatted_result": comparison.get_formatted_result(),
+            }
+
+        except Exception as error:
+            st.error("We could not complete the country comparison.")
+            st.caption(str(error))
+            return
+
+    result = st.session_state.get("comparison_result")
+
+    # Do not show or save an old result after the user changes their selection.
+    if not result or result.get("selection") != current_selection:
         return
 
-    code1 = countries[country1_name]
-    code2 = countries[country2_name]
+    st.success("Country comparison completed.")
 
-    try:
-        validate_inputs(code1, int(year))
-        validate_inputs(code2, int(year))
+    metric1, metric2 = st.columns(2)
+    metric1.metric(
+        f'{result["country1"]} holidays',
+        result["summary"]["total_holidays_country1"],
+    )
+    metric2.metric(
+        f'{result["country2"]} holidays',
+        result["summary"]["total_holidays_country2"],
+    )
 
-        with st.spinner("Loading holidays and comparing countries..."):
-            holidays1 = load_holidays(code1, int(year))
-            holidays2 = load_holidays(code2, int(year))
+    st.markdown("#### Shared holiday names")
+    if result["summary"]["shared_holiday_names"]:
+        for name in result["summary"]["shared_holiday_names"]:
+            st.write(f"- {name}")
+    else:
+        st.info("No holidays with matching names were found.")
 
-        first_country = Country(code1, country1_name)
-        second_country = Country(code2, country2_name)
-
-        for item in holidays1:
-            normalised = _normalise_holiday(item, first_country)
-            if normalised is not None:
-                first_country.add_holiday(normalised)
-
-        for item in holidays2:
-            normalised = _normalise_holiday(item, second_country)
-            if normalised is not None:
-                second_country.add_holiday(normalised)
-
-        comparison = ComparisonUI(first_country, second_country)
-        summary = comparison.get_comparison_summary()
-
-        st.success("Country comparison completed.")
-
-        metric1, metric2 = st.columns(2)
-        metric1.metric(
-            f"{country1_name} holidays",
-            summary["total_holidays_country1"],
+    st.markdown("#### Holidays on overlapping dates")
+    if result["overlapping_dates"]:
+        st.dataframe(
+            result["overlapping_dates"],
+            use_container_width=True,
+            hide_index=True,
         )
-        metric2.metric(
-            f"{country2_name} holidays",
-            summary["total_holidays_country2"],
-        )
+    else:
+        st.info("No holidays fall on the same dates in both countries.")
 
-        st.markdown("#### Shared holiday names")
-        if summary["shared_holiday_names"]:
-            for name in summary["shared_holiday_names"]:
-                st.write(f"- {name}")
-        else:
-            st.info("No holidays with matching names were found.")
+    st.divider()
 
-        st.markdown("#### Holidays on overlapping dates")
-        overlap_details = comparison.find_overlapping_dates()
-        if overlap_details:
-            st.dataframe(
-                overlap_details,
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.info("No holidays fall on the same dates in both countries.")
-        st.divider()
+    if st.button("Save Comparison", key="save_country_comparison"):
+        try:
+            from storage import save_comparison
 
-        if st.button("Save Comparison"):
-            try:
-                from storage import save_comparison
+            save_comparison({
+                "country1": result["country1"],
+                "country2": result["country2"],
+                "country1_code": result["country1_code"],
+                "country2_code": result["country2_code"],
+                "year": result["year"],
+                "summary": result["summary"],
+                "overlapping_dates": result["overlapping_dates"],
+            })
+            st.success("Comparison saved successfully!")
+        except Exception as error:
+            st.error(f"Could not save comparison: {error}")
 
-                save_comparison({
-                    "country1": country1_name,
-                    "country2": country2_name,
-                    "country1_code": code1,
-                    "country2_code": code2,
-                    "year": int(year),
-                    "summary": summary,
-                })
-
-                st.success("Comparison saved successfully!")
-
-            except Exception as error:
-                st.error(f"Could not save comparison: {error}")
-
-        with st.expander("View comparison summary"):
-            st.text(comparison.get_formatted_result())
-
-    except Exception as error:
-        st.error("We could not complete the country comparison.")
-        st.caption(str(error))
+    with st.expander("View comparison summary"):
+        st.text(result["formatted_result"])
