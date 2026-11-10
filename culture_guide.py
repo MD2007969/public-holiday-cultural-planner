@@ -36,17 +36,23 @@ class CultureGuideGenerator:
         "KE": "Kenya",
     }
 
-    # Paste your valid Gemini API key here
-    API_KEY = "AQ.Ab8RN6L5433YnVaWHeE7jouDV9W_5_oLaygZB-iffqoMb90yew"
-
     def __init__(self, api_key=None, model_name=None):
-        # use the built-in key (or a key passed in, or env vars as fallback)
-        self.api_key = (
-            api_key
-            or self.API_KEY
-            or os.getenv("GEMINI_API_KEY")
-            or os.getenv("GOOGLE_API_KEY")
-        )
+        # try to get the key from:
+        # 1. argument passed in
+        # 2. environment variable
+        # 3. Streamlit secrets (if running inside Streamlit)
+        self.api_key = api_key
+
+        if not self.api_key:
+            self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+
+        if not self.api_key:
+            try:
+                import streamlit as st
+                self.api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("GOOGLE_API_KEY")
+            except Exception:
+                pass
+
         # allow model to be set from env or parameter
         self.model_name = (
             model_name
