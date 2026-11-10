@@ -91,52 +91,86 @@ class CultureGuideGenerator:
             self.model = None
 
     def _ask_gemini(self, prompt):
-        """Send prompt to Gemini with automatic retries."""
-
+        """Send a prompt to Gemini with retries and a secondary model fallback."""
         if not self.api_key:
             return None
 
-        # Try up to 3 times
-        for attempt in range(3):
-            try:
-                if self.client is not None:
-                    resp = self.client.models.generate_content(
-                        model=self.model_name,
-                        contents=prompt
+        # Both are stable text-generation models listed in Google's Gemini API docs.
+        # The fallback is a lighter model intended for faster, higher-throughput tasks.
+        fallback_model = os.getenv(
+            "GEMINI_FALLBACK_MODEL",
+            "gemini-3.5-flash-lite"
+        )
+        models_to_try = [self.model_name]
+        if fallback_model and fallback_model != self.model_name:
+            models_to_try.append(fallback_model)
+
+        # Retry each model twice, with a short exponential backoff.
+        retry_delays = (2, 5)
+
+        for model_name in models_to_try:
+            for attempt in range(len(retry_delays) + 1):
+                try:
+                    if self.client is not None:
+                        resp = self.client.models.generate_content(
+                            model=model_name,
+                            contents=prompt
+                        )
+                    elif self.model is not None:
+                        # The legacy SDK model object is tied to its model name.
+                        if model_name == self.model_name:
+                            model = self.model
+                        else:
+                            import google.generativeai as genai
+                            model = genai.GenerativeModel(model_name)
+                        resp = model.generate_content(prompt)
+                    else:
+                        return None
+
+                    if resp and getattr(resp, "text", None):
+                        return resp.text.strip()
+
+                    logger.warning(
+                        "Gemini model %s returned an empty response (attempt %s).",
+                        model_name,
+                        attempt + 1
                     )
-                    if resp and hasattr(resp, "text") and resp.text:
-                        return resp.text.strip()
 
-                if self.model is not None:
-                    resp = self.model.generate_content(prompt)
-                    if resp and hasattr(resp, "text") and resp.text:
-                        return resp.text.strip()
+                except Exception as e:
+                    # Include provider diagnostics, but never write the API key to logs.
+                    error_detail = str(e)
+                    if self.api_key:
+                        error_detail = error_detail.replace(
+                            self.api_key,
+                            "[REDACTED]"
+                        )
+                    logger.warning(
+                        "Gemini model %s failed (attempt %s): %s: %s",
+                        model_name,
+                        attempt + 1,
+                        type(e).__name__,
+                        error_detail[:500]
+                    )
 
-            except Exception as e:
-                # Include the provider's diagnostic message so Cloud logs
-                # reveal whether this is a quota, permission, model, or server issue.
-                # Redact the API key defensively before writing anything to logs.
-                error_detail = str(e)
-                if self.api_key:
-                    error_detail = error_detail.replace(self.api_key, "[REDACTED]")
+                if attempt < len(retry_delays):
+                    delay = retry_delays[attempt]
+                    logger.info(
+                        "Gemini model %s is unavailable. Retrying in %s seconds...",
+                        model_name,
+                        delay
+                    )
+                    time.sleep(delay)
+
+            if model_name != models_to_try[-1]:
                 logger.warning(
-                    "Gemini request failed (attempt %s): %s: %s",
-                    attempt + 1,
-                    type(e).__name__,
-                    error_detail[:500]
+                    "Primary Gemini model %s did not respond. Trying fallback model %s.",
+                    model_name,
+                    fallback_model
                 )
 
-                # wait before trying again
-                if attempt == 0:
-                    logger.info("Gemini is busy. Retrying in 2 seconds...")
-                    time.sleep(2)
-                elif attempt == 1:
-                    logger.info("Still unavailable. Retrying in 4 seconds...")
-                    time.sleep(4)
-                else:
-                    logger.error("Gemini could not respond after 3 attempts.")
-                    return None
-
+        logger.error(
+            "Gemini could not respond using the primary or fallback model."
+        )
         return None
 
     def generate_guide(self, country_code, holiday_name, year):
