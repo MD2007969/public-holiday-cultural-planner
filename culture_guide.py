@@ -36,10 +36,14 @@ class CultureGuideGenerator:
         "KE": "Kenya",
     }
 
+    # Paste your valid Gemini API key here
+    API_KEY = "AQ.Ab8RN6L5433YnVaWHeE7jouDV9W_5_oLaygZB-iffqoMb90yew"
+
     def __init__(self, api_key=None, model_name=None):
-        # try env variables if no key is passed
+        # use the built-in key (or a key passed in, or env vars as fallback)
         self.api_key = (
             api_key
+            or self.API_KEY
             or os.getenv("GEMINI_API_KEY")
             or os.getenv("GOOGLE_API_KEY")
         )
@@ -193,15 +197,3 @@ Keep it under 200 words and neutral."""
         It does not guarantee that every request will succeed.
         """
         return self.client is not None or self.model is not None
-
-
-if __name__ == "__main__":
-    g = CultureGuideGenerator()
-    print("Available:", g.is_available())
-    print(
-        g.generate_guide(
-            "NG",
-            "Christmas Day",
-            2026
-        )
-    )
