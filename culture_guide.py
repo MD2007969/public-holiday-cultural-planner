@@ -113,10 +113,17 @@ class CultureGuideGenerator:
                         return resp.text.strip()
 
             except Exception as e:
+                # Include the provider's diagnostic message so Cloud logs
+                # reveal whether this is a quota, permission, model, or server issue.
+                # Redact the API key defensively before writing anything to logs.
+                error_detail = str(e)
+                if self.api_key:
+                    error_detail = error_detail.replace(self.api_key, "[REDACTED]")
                 logger.warning(
-                    "Gemini request failed (attempt %s): %s",
+                    "Gemini request failed (attempt %s): %s: %s",
                     attempt + 1,
-                    type(e).__name__
+                    type(e).__name__,
+                    error_detail[:500]
                 )
 
                 # wait before trying again
