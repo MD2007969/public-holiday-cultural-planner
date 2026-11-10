@@ -43,6 +43,20 @@ class CultureGuideGenerator:
             or os.getenv("GEMINI_API_KEY")
             or os.getenv("GOOGLE_API_KEY")
         )
+
+        # Streamlit Secrets is the secure local/deployment fallback.
+        # The real .streamlit/secrets.toml file must never be committed.
+        if not self.api_key:
+            try:
+                import streamlit as st
+                self.api_key = (
+                    st.secrets.get("GEMINI_API_KEY")
+                    or st.secrets.get("GOOGLE_API_KEY")
+                )
+            except Exception:
+                # Streamlit secrets may be unavailable outside Streamlit
+                # or when no secrets file has been configured.
+                pass
         # allow model to be set from env or parameter
         self.model_name = (
             model_name
